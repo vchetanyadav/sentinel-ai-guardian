@@ -104,5 +104,6 @@ def ask(q: Question):
     response = gemini.models.generate_content(
         model="gemini-2.5-flash",
         contents=f"{system_prompt}\n\nCustomer ({q.customer_id}): {q.message}\nRefundBot:",
-    )
+        config={"temperature": 0.0},
+)
     return Answer(answer=response.text, customer_id=q.customer_id)
