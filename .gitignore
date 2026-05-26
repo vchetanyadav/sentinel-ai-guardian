@@ -165,3 +165,6 @@ venv/
 # Local secrets — never commit
 *.key
 secrets/
+
+# Sentinel per-run logs (keep one fixture, ignore the rest)
+sentinel/runs/*.json

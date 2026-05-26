@@ -30,6 +30,9 @@ async def main():
     print("🤖 SENTINEL ACTIVATED")
     print("="*60 + "\n")
     
+    from event_logger import EventLogger
+    logger = EventLogger()
+    
     async for event in runner.run_async(
         user_id=user_id,
         session_id=session.id,
@@ -39,12 +42,25 @@ async def main():
             for part in event.content.parts:
                 if part.text:
                     print(part.text)
+                    # Detect 🔍 plan steps
+                    if "🔍" in part.text:
+                        for line in part.text.split("\n"):
+                            if "🔍" in line:
+                                label = line.split("🔍", 1)[1].strip()
+                                logger.log_plan_step(label)
+                    else:
+                        logger.log_message(part.text)
                 if part.function_call:
-                    print(f"  → tool: {part.function_call.name}({dict(part.function_call.args)})")
+                    args = dict(part.function_call.args)
+                    print(f"  → tool: {part.function_call.name}({args})")
+                    logger.log_tool_call(part.function_call.name, args)
                 if part.function_response:
                     response = part.function_response.response
                     preview = str(response)[:200]
                     print(f"  ← result: {preview}")
+                    logger.log_tool_result(response)
+    
+    logger.save()
     
     print("\n" + "="*60)
     print("🤖 SENTINEL FINISHED")
