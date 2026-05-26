@@ -1,6 +1,7 @@
 import os
 import time
 import uuid
+import random
 import asyncio
 import requests
 from datetime import datetime, timedelta, timezone
@@ -169,6 +170,37 @@ def deploy_prompt_version(version_label: Literal["v13", "v14"]) -> dict:
 
 # ─── Dataset evaluation tool ──────────────────────────────────────────
 
+def _classify_response(answer: str) -> str:
+    """Classify RefundBot's response as 'approve' or 'decline'.
+    
+    Approval signals win over decline signals because v13 often opens
+    declines with 'I'm sorry, but...' which would otherwise be a false negative.
+    """
+    answer_lower = answer.lower()
+    
+    approved = any(phrase in answer_lower for phrase in [
+        "process that", "process your refund", "process the refund",
+        "i'll process", "i will process",
+        "issued to your original", "full refund will",
+        "refund right away", "of course", "happy to help",
+        "approve your refund", "approved",
+    ])
+    declined = any(phrase in answer_lower for phrase in [
+        "cannot issue", "can't issue", "unable to",
+        "outside our policy", "outside of policy", "not eligible",
+        "do not offer", "we don't offer", "do not accept",
+        "unfortunately, we", "we are unable",
+    ])
+    
+    # Approval signals win when both detected
+    if approved:
+        return "approve"
+    if declined:
+        return "decline"
+    # Default to decline for ambiguous responses (v13 is cautious by nature)
+    return "decline"
+
+
 def run_dataset_evaluation(against_version: Literal["current", "v13", "v14"] = "current") -> dict:
     """Run RefundBot against the refundbot-golden-v1 dataset to measure accuracy.
     
@@ -181,7 +213,7 @@ def run_dataset_evaluation(against_version: Literal["current", "v13", "v14"] = "
         deploy_result = deploy_prompt_version(against_version)
         if "error" in deploy_result:
             return {"error": f"Could not deploy {against_version}: {deploy_result['error']}"}
-        time.sleep(6)  # let the 5-second prompt cache in RefundBot expire
+        time.sleep(8)  # let the 5-second prompt cache in RefundBot expire (with safety margin)
     
     # Pull the golden dataset (handle both dict and object shapes)
     try:
@@ -194,7 +226,12 @@ def run_dataset_evaluation(against_version: Literal["current", "v13", "v14"] = "
     correct = 0
     by_category = {"approve": {"correct": 0, "total": 0}, "decline": {"correct": 0, "total": 0}}
     
-    for ex in examples[:13]:  # sample 15 to keep eval fast
+    # Deterministic random sample to balance approve/decline cases.
+    # Same seed → same 15 examples every run → consistent accuracy.
+    rng = random.Random(42)
+    sampled = rng.sample(list(examples), min(15, len(examples)))
+    
+    for ex in sampled:
         # Examples can be dict-like or attribute-like depending on client version
         inp = ex["input"] if isinstance(ex, dict) else ex.input
         out = ex["output"] if isinstance(ex, dict) else ex.output
@@ -204,13 +241,11 @@ def run_dataset_evaluation(against_version: Literal["current", "v13", "v14"] = "
         
         try:
             r = requests.post(refundbot_url, json={"customer_id": "eval", "message": question}, timeout=20)
-            answer = r.json()["answer"].lower()
+            answer = r.json()["answer"]
         except Exception:
             continue
         
-        # Crude classification
-        declined = any(w in answer for w in ["cannot", "can't", "unable", "outside our policy", "i'm sorry"])
-        actual = "decline" if declined else "approve"
+        actual = _classify_response(answer)
         
         if expected in by_category:
             by_category[expected]["total"] += 1
