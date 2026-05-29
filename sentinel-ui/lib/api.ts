@@ -72,3 +72,45 @@ export async function fetchRun(runId: string): Promise<Run> {
   if (!r.ok) throw new Error("Failed to fetch run");
   return r.json();
 }
+
+export async function triggerSentinel(): Promise<{ run_id: string }> {
+  const r = await fetch(`${API_BASE}/api/sentinel/run`, { method: "POST" });
+  if (!r.ok) throw new Error("Failed to trigger Sentinel");
+  return r.json();
+}
+
+export function streamSentinelEvents(
+  runId: string,
+  onEvent: (ev: RunEvent) => void,
+  onDone: () => void,
+): () => void {
+  const es = new EventSource(`${API_BASE}/api/sentinel/stream/${runId}`);
+  
+  const handler = (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data);
+      onEvent(data);
+    } catch (err) {
+      console.error("Failed to parse event", err);
+    }
+  };
+  
+  es.addEventListener("plan_step", handler);
+  es.addEventListener("tool_call", handler);
+  es.addEventListener("tool_result", handler);
+  es.addEventListener("message", handler);
+  
+  es.addEventListener("done", () => {
+    es.close();
+    onDone();
+  });
+  
+  es.addEventListener("error", () => {
+    // EventSource auto-retries; we treat error as done for now
+    es.close();
+    onDone();
+  });
+  
+  // Return cleanup function
+  return () => es.close();
+}
