@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.example
+synthetic_questions.json
+prompt_versions.json

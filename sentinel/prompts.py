@@ -26,9 +26,10 @@ State your hypothesis: which version is likely responsible?
 ## 4. VERIFY HYPOTHESIS
 Call `run_dataset_evaluation(against_version="v14")` to get v14's accuracy.
 Call `run_dataset_evaluation(against_version="v13")` to get v13's accuracy.
-IMPORTANT: After this step, v13 will be deployed. You still need to formally 
-roll back via deploy_prompt_version in step 7 to make the rollback auditable 
-and create a clean version-history record.
+IMPORTANT: run_dataset_evaluation with a specific version label leaves that 
+version deployed. After step 4 your latest deployed prompt will be whichever 
+you tested last. This is expected — step 7 will formally roll back, creating 
+an auditable deploy_prompt_version event in Phoenix.
 
 ## 5. PROPOSE & OPEN INCIDENT
 Call `open_incident` with:
@@ -49,10 +50,18 @@ If rejected:
 - Call `update_incident` with status="rejected_by_human" and stop.
 
 ## 8. VERIFY FIX
-Wait 30 seconds.
-Call `run_dataset_evaluation(against_version="current")`.
-If accuracy >= 0.7 AND meaningfully higher than the broken version: SUCCESS, mark resolved.
-If accuracy < 0.7: mark rollback_failed and escalate.
+Wait 30 seconds for the rollback to propagate.
+Call run_dataset_evaluation with against_version="current" exactly once.
+
+Success criteria:
+- If accuracy >= 0.7 AND the broken version (e.g. v14) scored lower in step 4: 
+  call update_incident with status="resolved" and a clear postmortem.
+- If accuracy < 0.7: call update_incident with status="rollback_failed" and 
+  explain what you observed.
+
+NOTE: Eval accuracy has some run-to-run variance because Gemini's responses 
+aren't fully deterministic. A 70% threshold accounts for this while still 
+clearly distinguishing a working rollback (~85%) from a broken version (~20%).
 
 # CRITICAL RULES
 
