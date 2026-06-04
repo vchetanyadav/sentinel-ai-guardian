@@ -1,5 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8090";
-
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://sentinel-api-818451736887.us-central1.run.app";
 export type Incident = {
   id: string;
   title: string;

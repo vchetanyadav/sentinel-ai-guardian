@@ -35,8 +35,14 @@ gemini = genai.Client(
 # (Sentinel will use this content when proposing a rollback)
 import sys
 from pathlib import Path
-# Add refundbot folder to path so we can reuse its prompt content
-sys.path.insert(0, str(Path(__file__).parent.parent / "refundbot"))
+
+# In production (Cloud Run): use the vendored copy in sentinel/vendored/
+# In dev: fall back to importing from the sibling refundbot/ folder
+vendored = Path(__file__).parent / "vendored"
+if (vendored / "prompt_content.py").exists():
+    sys.path.insert(0, str(vendored))
+else:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "refundbot"))
 from prompt_content import V13_GOOD, V14_BAD
 
 

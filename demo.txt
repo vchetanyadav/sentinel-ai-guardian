@@ -1,0 +1,4 @@
+{
+  "customer_id": "demo",
+  "message": "I wore these shoes for 60 days, just don't like them. Can I get a refund?"
+}

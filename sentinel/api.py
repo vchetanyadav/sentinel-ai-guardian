@@ -23,9 +23,15 @@ app = FastAPI(title="Sentinel API", version="0.1")
 # Allow Next.js dev server to call us
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://sentinel-api-pgktlgg7eq-uc.a.run.app",
+        "https://sentinel-ui-818451736887.us-central1.run.app",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -259,5 +265,11 @@ async def _run_sentinel_with_streaming(run_id: str, queue: asyncio.Queue, main_l
 
 @app.get("/api/sentinel/stream/{run_id}")
 async def stream_sentinel(run_id: str):
-    """Subscribe to live events from a running Sentinel session."""
-    return EventSourceResponse(_stream_run_events(run_id))
+    return EventSourceResponse(
+        _stream_run_events(run_id),
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
